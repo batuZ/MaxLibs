@@ -18,7 +18,7 @@ fn getObjSet=(
 	)
 	
 fn sendToDoNet arr =(
-	dotnet.loadassembly @"CreateMeshByPoints.dll"
+	dotnet.loadassembly @"\bin\Debug\CreateMeshByPoints.dll"
 	func = dotNetObject "CreateMeshByPoints.ToTIN"
 	return func.CreateFromPoints(arr)
 	)
