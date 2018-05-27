@@ -1,4 +1,5 @@
-﻿using System;
+﻿using OSGeo.GDAL;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,6 +9,41 @@ namespace CreateMeshByPoints
 {
     public class ToTIN
     {
+        Dataset ds;
+        double[] trans;
+        public float[] getOutBox(string filePath)
+        {
+            Gdal.AllRegister();
+            ds = Gdal.Open(filePath, Access.GA_ReadOnly);
+            trans = new double[6];
+            ds.GetGeoTransform(trans); 
+            double minx, miny, maxx, maxy;
+            imageToGeoSpace(trans, 0, 0, out minx, out maxy);
+            imageToGeoSpace(trans, ds.RasterXSize, ds.RasterYSize, out maxx, out miny);
+            return new float[] { (float)minx, (float)miny, (float)maxx, (float)maxy };
+        }
+        public float[] CreateFromReaset(float[] points)
+        {
+            float[] val = new float[ds.RasterXSize * ds.RasterYSize];
+            Band band = ds.GetRasterBand(1);
+            band.ReadRaster(0, 0, ds.RasterXSize, ds.RasterYSize, val, ds.RasterXSize, ds.RasterYSize, 0, 0);
+
+            PointList pList = new PointList();
+            for (int i = 0; i < points.Length; i += 2)
+            {
+                pList.pointList.Add(new Point(points[i], points[i + 1]));
+            }
+            List<float> res = new List<float>();
+            pList.pointList.ForEach(v =>
+            {
+                int p, l;
+                geoToImageSpace(trans, v.X, v.Y, out p, out l);
+                v.Z = val[imgSpaceToIndex(p, l, ds.RasterXSize)];
+                res.Add(v.Z);
+            });
+         
+            return res.ToArray();
+        }
         public float[] CreateFromPoints(float[] a)
         {
             float[] k = null;
@@ -43,6 +79,58 @@ namespace CreateMeshByPoints
                 }
             }
             return k;
+        }
+
+        /*******************************TransFrom 与坐标转换**************************************************/
+
+        /// <summary>
+        /// 从值数组的索引转成图像坐标
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="xSize"></param>
+        /// <param name="pixel"></param>
+        /// <param name="line"></param>
+        public static void indexToImgspace(int index, int xSize, out int pixel, out int line)
+        {
+            pixel = (index + 1) % xSize;
+            line = index / xSize;
+        }
+        /// <summary>
+        /// 从图像坐标转成值数组的索引
+        /// </summary>
+        /// <param name="pixel"></param>
+        /// <param name="line"></param>
+        /// <param name="zSize"></param>
+        /// <returns></returns>
+        public static int imgSpaceToIndex(int pixel, int line, int zSize)
+        {
+            return line * zSize + pixel;
+        }
+        /// <summary>
+        /// 从像素空间转换到地理空间
+        /// </summary>
+        /// <param name="adfGeoTransform">影像坐标变换参数</param>
+        /// <param name="pixel">像素所在行</param>
+        /// <param name="line">像素所在列</param>
+        /// <param name="x">X</param>
+        /// <param name="y">Y</param>
+        public static void imageToGeoSpace(double[] m_GeoTransform, int pixel, int line, out double X, out double Y)
+        {
+            X = m_GeoTransform[0] + pixel * m_GeoTransform[1] + line * m_GeoTransform[2];
+            Y = m_GeoTransform[3] + pixel * m_GeoTransform[4] + line * m_GeoTransform[5];
+        }
+        /// <summary>
+        /// 从地理空间转换到像素空间
+        /// </summary>
+        /// <param name="adfGeoTransform">影像坐标变化参数</param>
+        /// <param name="x">X</param>
+        /// <param name="y">Y</param>
+        /// <param name="pixel">像素所在行</param>
+        /// <param name="line">像素所在列</param>
+        public static void geoToImageSpace(double[] m_GeoTransform, double x, double y, out int pixel, out int line)
+        {
+            line = (int)((y * m_GeoTransform[1] - x * m_GeoTransform[4] + m_GeoTransform[0] * m_GeoTransform[4] - m_GeoTransform[3] * m_GeoTransform[1]) / (m_GeoTransform[5] * m_GeoTransform[1] - m_GeoTransform[2] * m_GeoTransform[4]));
+            pixel = (int)((x - m_GeoTransform[0] - line * m_GeoTransform[2]) / m_GeoTransform[1]);
         }
     }
 
