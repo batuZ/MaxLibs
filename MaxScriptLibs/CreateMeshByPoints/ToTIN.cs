@@ -1,4 +1,5 @@
 ﻿using OSGeo.GDAL;
+using OSGeo.OGR;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,44 +10,39 @@ namespace CreateMeshByPoints
 {
     public class ToTIN
     {
+        #region 处理栅格
         Dataset ds;
         double[] trans;
+        float[] values;
         public float[] getOutBox(string filePath)
         {
             Gdal.AllRegister();
             ds = Gdal.Open(filePath, Access.GA_ReadOnly);
             trans = new double[6];
-            ds.GetGeoTransform(trans); 
+            ds.GetGeoTransform(trans);
+            values = new float[ds.RasterXSize * ds.RasterYSize];
+            Band band = ds.GetRasterBand(1);
+            band.ReadRaster(0, 0, ds.RasterXSize, ds.RasterYSize, values, ds.RasterXSize, ds.RasterYSize, 0, 0);
             double minx, miny, maxx, maxy;
             imageToGeoSpace(trans, 0, 0, out minx, out maxy);
             imageToGeoSpace(trans, ds.RasterXSize, ds.RasterYSize, out maxx, out miny);
             return new float[] { (float)minx, (float)miny, (float)maxx, (float)maxy };
         }
-        public float[] CreateFromReaset(float[] points)
+        public float getZ_byXY(float x, float y)
         {
-            float[] val = new float[ds.RasterXSize * ds.RasterYSize];
-            Band band = ds.GetRasterBand(1);
-            band.ReadRaster(0, 0, ds.RasterXSize, ds.RasterYSize, val, ds.RasterXSize, ds.RasterYSize, 0, 0);
-
-            PointList pList = new PointList();
-            for (int i = 0; i < points.Length; i += 2)
-            {
-                pList.pointList.Add(new Point(points[i], points[i + 1]));
-            }
-            List<float> res = new List<float>();
-            pList.pointList.ForEach(v =>
-            {
-                int p, l;
-                geoToImageSpace(trans, v.X, v.Y, out p, out l);
-                v.Z = val[imgSpaceToIndex(p, l, ds.RasterXSize)];
-                res.Add(v.Z);
-            });
-         
-            return res.ToArray();
+            int p, l, index;
+            geoToImageSpace(trans, x, y, out p, out l);
+            p = p == ds.RasterXSize ? p - 1 : p;
+            l = l == ds.RasterYSize ? l - 1 : l;
+            index = imgSpaceToIndex(p, l, ds.RasterXSize);
+            return values[index];
         }
+        #endregion
+
+        #region 处理点集
         public float[] CreateFromPoints(float[] a)
         {
-            float[] k = null;
+            List<float> temp = new List<float>();
             if (a != null && a.Length > 0 && a.Length % 3 == 0)
             {
                 PointList pList = new PointList();
@@ -61,6 +57,7 @@ namespace CreateMeshByPoints
 
                 if (tl.Count > 0)
                 {
+                    //三角形转点集
                     PointList tPoints = new PointList();
                     for (int i = 0; i < tl.Count; i++)
                     {
@@ -68,21 +65,58 @@ namespace CreateMeshByPoints
                         tPoints.pointList.Add(tl[i].B);
                         tPoints.pointList.Add(tl[i].C);
                     }
-                    List<float> temp = new List<float>();
+                    //点集转有序数组
                     for (int i = 0; i < tPoints.Count; i++)
                     {
                         temp.Add(tPoints[i].X);
                         temp.Add(tPoints[i].Y);
                         temp.Add(tPoints[i].Z);
                     }
-                    k = temp.ToArray();
                 }
             }
-            return k;
+            return temp.ToArray();
         }
+        #endregion
 
-        /*******************************TransFrom 与坐标转换**************************************************/
+        #region 处理shpFile
+        public float[] CreateFromSHP(string shpfile)
+        {
+            Ogr.RegisterAll();
+            OSGeo.OGR.Driver dr = Ogr.GetDriverByName("ESRI shapefile");
+            DataSource ds = dr.Open(shpfile, 0);
+            Layer layer = ds.GetLayerByIndex(0);
+            List<float> points = new List<float>();
+            //判断数据是否可用
+            int FeatCount = layer.GetFeatureCount(0);
+            wkbGeometryType geoType = layer.GetLayerDefn().GetGeomFieldDefn(0).GetFieldType();
+            if (FeatCount > 2 && geoType.ToString().Contains("wkbPoint"))
+            {
+                int indexZ = layer.GetLayerDefn().GetFieldIndex("Z");
+                if (indexZ > -1)    //优先使用 Z 字段
+                {
+                    for (int i = 0; i < FeatCount; i++)
+                    {
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetX(0));
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetY(0));
+                        points.Add((float)layer.GetFeature(i).GetFieldAsDouble(indexZ));
+                    }
+                }
+                else if (geoType == wkbGeometryType.wkbPoint25D)
+                {
+                    for (int i = 0; i < FeatCount; i++)
+                    {
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetX(0));
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetY(0));
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetZ(0));
+                    }
+                }
+            }
+            ds.Dispose();
+            return CreateFromPoints(points.ToArray());
+        }
+        #endregion
 
+        #region TransFrom 与坐标转换
         /// <summary>
         /// 从值数组的索引转成图像坐标
         /// </summary>
@@ -132,8 +166,10 @@ namespace CreateMeshByPoints
             line = (int)((y * m_GeoTransform[1] - x * m_GeoTransform[4] + m_GeoTransform[0] * m_GeoTransform[4] - m_GeoTransform[3] * m_GeoTransform[1]) / (m_GeoTransform[5] * m_GeoTransform[1] - m_GeoTransform[2] * m_GeoTransform[4]));
             pixel = (int)((x - m_GeoTransform[0] - line * m_GeoTransform[2]) / m_GeoTransform[1]);
         }
+        #endregion
     }
 
+    #region 三角化
     // Construction_TIN核心代码
     class Construction_TIN
     {
@@ -225,7 +261,6 @@ namespace CreateMeshByPoints
 
         }
     }
-
     //点类和点列表类
     class Point
     {
@@ -254,7 +289,6 @@ namespace CreateMeshByPoints
             return false;
         }
     }
-
     //点列表的定义
     class PointList
     {
@@ -317,7 +351,6 @@ namespace CreateMeshByPoints
             return new Triangle(superTA, superTB, superTC);
         }
     }
-
     //边类和边列表类
     class Edge
     {
@@ -344,7 +377,6 @@ namespace CreateMeshByPoints
             return false;
         }
     }
-
     //边列表
     class EdgeList
     {
@@ -384,7 +416,6 @@ namespace CreateMeshByPoints
             }
         }
     }
-
     //三角形类及三角形列表类 
     class Triangle
     {
@@ -472,7 +503,6 @@ namespace CreateMeshByPoints
             return false;
         }
     }
-
     class TriangleList
     {
         //定义三角形列表
@@ -509,4 +539,5 @@ namespace CreateMeshByPoints
             triangleList.Remove(rmvTriangle);
         }
     }
+    #endregion
 }
