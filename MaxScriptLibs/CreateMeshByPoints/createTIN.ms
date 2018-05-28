@@ -1,7 +1,7 @@
 dotnet.loadassembly @"bin\x64\Debug\CreateMeshByPoints.dll"
 global funcs = dotNetObject "CreateMeshByPoints.ToTIN"
 global gridSize = 5
-global filePath
+global rPath = ""
 
 -- 建网格
 fn createMesh res = (
@@ -35,10 +35,10 @@ fn fromSelection = (
 	)
 
 -- 通过栅格创建
-fn fromRaster fPath =(
+fn fromRaster rp =(
 
 	-- 调.net函数,读取栅格的范围 [0]minx [1]miny [2]maxX [3]maxY
-	local outBox = funcs.getOutBox(fPath)
+	local outBox = funcs.getOutBox(rp)
 
 	-- X,Y的长度
 	local _xd = outBox[3] - outBox[1]
@@ -77,7 +77,7 @@ rollout setGridSize "" width:232 height:40
 	spinner 'spn1' "Grid Size: " pos:[15,12] width:116 height:22 align:#left range:[0.1,1000, gridSize] 
 	button 'btn1' "Go" pos:[170,10] width:48 height:20 align:#left
 	on btn1 pressed  do(
-		fromRaster(filePath)
+		fromRaster(rPath)
 		)
 	on spn1 changed amt do(
 		gridSize = amt
@@ -91,7 +91,7 @@ fn openFiles=(
 	--resetMaxFile()
 
 	--选择
-	filePath = getOpenFileName caption: "open File:" \
+	local filePath = getOpenFileName caption: "open File:" \
 	types: "DWG(*.dwg)|*.dwg|ShapeFile(*.shp)|*.shp|GeoTIFF(*.tif)|*.tif|IMAGE(*.img)|*.img";
 
 	--取消
@@ -102,6 +102,7 @@ fn openFiles=(
 
 	-- 栅格数据
 	if fileType == ".TIF" or fileType == ".IMG" then(
+		rPath = filePath
 		createdialog setGridSize
 		)
 	-- shp 文件通过ogr导入
@@ -111,6 +112,8 @@ fn openFiles=(
 	-- dwg 文件直接导入
 	else if fileType == ".DWG" then(
 		importFile filePath
+		select objects
+		fromSelection()
 		)
 	)
 
