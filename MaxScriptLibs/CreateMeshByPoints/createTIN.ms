@@ -1,7 +1,8 @@
-dotnet.loadassembly @"bin\x64\Debug\CreateMeshByPoints.dll"
+﻿dotnet.loadassembly @"bin\x64\Debug\CreateMeshByPoints.dll"
 global funcs = dotNetObject "CreateMeshByPoints.ToTIN"
 global gridSize = 5
 global rPath = ""
+clearListener()
 
 -- 建网格
 fn createMesh res = (
@@ -17,6 +18,7 @@ fn createMesh res = (
 	print faces
 	faceid
  	mesh vertices:faces  faces:faceid
+	max tool zoomextents
 	)
 
 fn fromShpFile fPath =(
@@ -78,6 +80,8 @@ rollout setGridSize "" width:232 height:40
 	button 'btn1' "Go" pos:[170,10] width:48 height:20 align:#left
 	on btn1 pressed  do(
 		fromRaster(rPath)
+		destroyDialog setGridSize
+		max tool zoomextents
 		)
 	on spn1 changed amt do(
 		gridSize = amt
