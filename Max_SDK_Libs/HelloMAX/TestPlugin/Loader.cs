@@ -120,45 +120,22 @@ namespace TestPlugin
                 actionManager.RegisterActionTable(actionTable);
                 actionManager.ActivateActionTable(new Callback(), idActionTable);
 
-                // Set up menu
-                menuManager = Loader.Core.MenuManager;
-                string mainMenu = "&SDK Test Menu";
-                //cleanup menu
-                MenuBox = menuManager.FindMenu(mainMenu);
-                if (MenuBox != null)
+                if (true) // 2018
                 {
-                    menuManager.UnRegisterMenu(MenuBox);
-                    Loader.Global.ReleaseIMenu(MenuBox);
-                    MenuBox = null;
+                    GlobalDelegates.Delegate5 m_SystemStartupDelegate = new GlobalDelegates.Delegate5(initMenu);
+                    Loader.Global.RegisterNotification(m_SystemStartupDelegate, null, SystemNotificationCode.SystemStartup);
                 }
-
-                // Main menu
-                MenuBox = Loader.Global.IMenu;
-                MenuBox.Title = mainMenu;
-                menuManager.RegisterMenu(MenuBox, 0);
-
-                // sub menu
-                for (int i = 0; i < actionTable.Count; i++)
+                else //2014 - 2017
                 {
-                    IActionItem action = actionTable[i];
-                    IIMenuItem mItem = Loader.Global.IMenuItem;
-                    mItem.Title = action.ButtonText;
-                    mItem.ActionItem = action;
-                    MenuBox.AddItem(mItem, -1);
+                    initMenu(IntPtr.Zero, IntPtr.Zero);
                 }
-
-                //MenuBox -> MenuBoxItem -> MainMenuBar
-                MenuBoxItem = Loader.Global.IMenuItem;
-                MenuBoxItem.SubMenu = MenuBox;
-                menuManager.MainMenuBar.AddItem(MenuBoxItem, -1);
-                Loader.Global.COREInterface.MenuManager.UpdateMenuBar();
-
                 return 0;
             }
         }
 
         public override void Stop()
-        { ///释放部份还没完成
+        {
+            ///释放部份还没完成
             try
             {
                 // Close exporter form manually
@@ -169,7 +146,7 @@ namespace TestPlugin
 
                 if (actionTable != null)
                 {
-                    Loader.Global.COREInterface.ActionManager.DeactivateActionTable(actionCallback, idActionTable);
+                    Loader.Global.COREInterface.ActionManager.DeactivateActionTable(cBack, idActionTable);
                 }
 
                 // Clean up menu
@@ -187,6 +164,42 @@ namespace TestPlugin
             {
                 // Fails silently
             }
+        }
+
+        private void initMenu(IntPtr objPtr, IntPtr infoPtr)
+        {
+            // Set up menu
+            menuManager = Loader.Core.MenuManager;
+            string mainMenu = "&SDK Test Menu";
+            //cleanup menu
+            MenuBox = menuManager.FindMenu(mainMenu);
+            if (MenuBox != null)
+            {
+                menuManager.UnRegisterMenu(MenuBox);
+                Loader.Global.ReleaseIMenu(MenuBox);
+                MenuBox = null;
+            }
+
+            // Main menu
+            MenuBox = Loader.Global.IMenu;
+            MenuBox.Title = mainMenu;
+            menuManager.RegisterMenu(MenuBox, 0);
+
+            // sub menu
+            for (int i = 0; i < actionTable.Count; i++)
+            {
+                IActionItem action = actionTable[i];
+                IIMenuItem mItem = Loader.Global.IMenuItem;
+                mItem.Title = action.ButtonText;
+                mItem.ActionItem = action;
+                MenuBox.AddItem(mItem, -1);
+            }
+
+            //MenuBox -> MenuBoxItem -> MainMenuBar
+            MenuBoxItem = Loader.Global.IMenuItem;
+            MenuBoxItem.SubMenu = MenuBox;
+            menuManager.MainMenuBar.AddItem(MenuBoxItem, -1);
+            Loader.Global.COREInterface.MenuManager.UpdateMenuBar();
         }
     }
 }
