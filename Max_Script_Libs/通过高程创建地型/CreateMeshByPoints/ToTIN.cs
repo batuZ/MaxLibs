@@ -40,15 +40,18 @@ namespace CreateMeshByPoints
         #endregion
 
         #region 处理点集
+        public float[] points;
+        public int[] ids;
         public float[] CreateFromPoints(float[] a)
         {
             List<float> temp = new List<float>();
             if (a != null && a.Length > 0 && a.Length % 3 == 0)
             {
                 PointList pList = new PointList();
+                int id = 0;
                 for (int i = 0; i < a.Length; i += 3)
                 {
-                    Point p = new Point(a[i], a[i + 1], a[i + 2]);
+                    Point p = new Point(a[i], a[i + 1], a[i + 2], id++);
                     pList.pointList.Add(p);
                 }
 
@@ -74,7 +77,42 @@ namespace CreateMeshByPoints
                     }
                 }
             }
+
             return temp.ToArray();
+        }
+        public bool CreateFromPoints_1(float[] a)
+        {
+            bool res = false;
+            if (a != null && a.Length > 0 && a.Length % 3 == 0)
+            {
+                PointList pList = new PointList();
+                int id = 1;
+                for (int i = 0; i < a.Length; i += 3)
+                {
+                    Point p = new Point(a[i], a[i + 1], a[i + 2], id++);
+                    pList.pointList.Add(p);
+                }
+
+                Construction_TIN ct = new Construction_TIN(pList);
+                TriangleList tl = ct.Triangle_const();
+
+                if (tl.Count > 0)
+                {
+                    List<int> temp = new List<int>();
+                    for (int i = 0; i < tl.Count; i++)
+                    {
+                        temp.Add(tl[i].A.ids);
+                        temp.Add(tl[i].B.ids);
+                        temp.Add(tl[i].C.ids);
+                    }
+                    points = a;
+                    ids = temp.ToArray();
+                    res = true;
+                }
+                else res = false;
+            }
+            else res = false;
+            return res;
         }
         #endregion
 
@@ -113,6 +151,41 @@ namespace CreateMeshByPoints
             }
             ds.Dispose();
             return CreateFromPoints(points.ToArray());
+        }
+        public bool CreateFromSHP_1(string shpfile)
+        {
+            Ogr.RegisterAll();
+            OSGeo.OGR.Driver dr = Ogr.GetDriverByName("ESRI shapefile");
+            DataSource ds = dr.Open(shpfile, 0);
+            Layer layer = ds.GetLayerByIndex(0);
+            List<float> points = new List<float>();
+            //判断数据是否可用
+            int FeatCount = layer.GetFeatureCount(0);
+            wkbGeometryType geoType = layer.GetLayerDefn().GetGeomFieldDefn(0).GetFieldType();
+            if (FeatCount > 2 && geoType.ToString().Contains("wkbPoint"))
+            {
+                int indexZ = layer.GetLayerDefn().GetFieldIndex("Z");
+                if (indexZ > -1)    //优先使用 Z 字段
+                {
+                    for (int i = 0; i < FeatCount; i++)
+                    {
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetX(0));
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetY(0));
+                        points.Add((float)layer.GetFeature(i).GetFieldAsDouble(indexZ));
+                    }
+                }
+                else if (geoType == wkbGeometryType.wkbPoint25D)
+                {
+                    for (int i = 0; i < FeatCount; i++)
+                    {
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetX(0));
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetY(0));
+                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetZ(0));
+                    }
+                }
+            }
+            ds.Dispose();
+            return CreateFromPoints_1(points.ToArray());
         }
         #endregion
 
@@ -203,8 +276,7 @@ namespace CreateMeshByPoints
             this.triangles.triangleList.Add(superTriangle);
 
             //定义超三角形顶点列表，仅用于装超三角形顶点
-            Point[] superpoints
-                = new Point[] { superTriangle.A, superTriangle.B, superTriangle.C };
+            Point[] superpoints = new Point[] { superTriangle.A, superTriangle.B, superTriangle.C };
             //遍历点列表中所有点
             for (int i = 0; i < this.pointlist.Count; i++)
             {
@@ -231,13 +303,12 @@ namespace CreateMeshByPoints
                     }
                 }
                 //在边列表中删除重复边
-                edges.RemoveDiagonal();
+                edges.RemoveDiagonal(2);
                 //将新插点与所有边连接成三角形
                 for (int m = 0; m < edges.Count; m++)
                 {
                     this.triangles.triangleList.Add(new Triangle(anewpoint, edges[m]));
                 }
-
             }
             // 遍历超级三角形的顶点，并删除超级三角形
             foreach (Point sp_point in superpoints)
@@ -402,7 +473,6 @@ namespace CreateMeshByPoints
                         indexList.Add(j);
                         break;
                     }
-
                 }
             }
             //排序
@@ -413,6 +483,28 @@ namespace CreateMeshByPoints
             foreach (int i in indexList)
             {
                 this.edgeList.RemoveAt(i);
+            }
+        }
+        public void RemoveDiagonal(int m)
+        {
+            List<Edge> indexList = new List<Edge>();
+
+            for (int i = 0; i < this.edgeList.Count; i++)
+            {
+                for (int j = i + 1; j < this.edgeList.Count; j++)
+                {
+                    if (this.edgeList[i].EqualsEdge(this.edgeList[j]))
+                    {
+                        indexList.Add(edgeList[i]);
+                        indexList.Add(edgeList[j]);
+                        break;
+                    }
+
+                }
+            }
+            foreach (var i in indexList)
+            {
+                this.edgeList.Remove(i);
             }
         }
     }
