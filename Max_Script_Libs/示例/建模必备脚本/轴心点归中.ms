@@ -1,0 +1,4 @@
+(
+	$.pivot=$.center
+	)
+	

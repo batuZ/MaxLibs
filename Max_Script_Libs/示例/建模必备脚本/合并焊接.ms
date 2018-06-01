@@ -1,0 +1,4 @@
+(
+	splineOps.fuse $
+	splineOps.weld $
+)
