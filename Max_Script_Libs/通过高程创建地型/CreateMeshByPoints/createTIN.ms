@@ -1,32 +1,27 @@
-﻿dotnet.loadassembly @"bin\x64\Debug\CreateMeshByPoints.dll"
+dotnet.loadassembly @"bin\x64\Debug\CreateMeshByPoints.dll"
 global funcs = dotNetObject "CreateMeshByPoints.ToTIN"
 global gridSize = 5
-global rPath = ""
+global filePath
 clearListener()
 
 -- 建网格
-fn createMesh res = (
-	faces = #()
-	faceid= #()
-	progressStart "创建地形网格..."
-	for f=1 to res.count by 3 do(
-		append faces [res[f],res[f+1],res[f+2]]
-		progressUpdate (100 * f / res.count)
-		if getProgressCancel() then exit
+fn createMesh = (
+	local vs = #(); fs = #(); points = funcs.points; ids = funcs.ids
+-- 	progressStart "创建地形网格..."
+	for f=1 to points.count by 3 do(
+		append vs [points[f],points[f+1],points[f+2]]
+-- 		progressUpdate (100 * f / points.count)
+-- 		if getProgressCancel() then exit
 		) 
-	for d = 1 to res.count/3 by 3 do (
-		append faceid [d,d+1,d+2]
-		progressUpdate (100 * d / (res.count/3))
-		if getProgressCancel() then exit
+	for d = 1 to ids.count by 3 do (
+		append fs [ids[d],ids[d+1],ids[d+2]]
+-- 		progressUpdate (100 * d / ids.count)
+-- 		if getProgressCancel() then exit
 		)
-	progressEnd()
+-- 	progressEnd()
 	pushPrompt "Done!"
- 	mesh vertices:faces  faces:faceid
+ 	mesh vertices:vs  faces:fs
 	max tool zoomextents
-	)
-	
-fn fromShpFile fPath =(
-	createMesh(funcs.CreateFromSHP(fPath))
 	)
 
 -- 通过场景选择集创建
@@ -37,22 +32,19 @@ fn fromSelection = (
 		append arr obj.pos.y
 		append arr obj.pos.z
 		)
-	return funcs.CreateFromPoints arr
+	return funcs.CreateMesh arr
 	)
 
 -- 通过栅格创建
-fn fromRaster rp =(
+fn fromRaster =(
 
 	-- 调.net函数,读取栅格的范围 [0]minx [1]miny [2]maxX [3]maxY
-	local outBox = funcs.getOutBox(rp)
+	local outBox = funcs.getOutBox(filePath)
 
 	-- X,Y的长度
 	local _xd = outBox[3] - outBox[1]
 	local _yd = outBox[4] - outBox[2]
 	
-	-- 格子大小
-	local gridSize = 1
-
 	-- 格子数量
 	local widthCount = _xd / gridSize
 	local lengthCount = _yd / gridSize
@@ -61,7 +53,7 @@ fn fromRaster rp =(
 	local posx = _xd/2+outBox[1]
 	local posy = _yd/2+outBox[2]
 	
-	resMesh = Plane width:_xd length:_yd pos:[posx,posy,0] \
+	local resMesh = Plane width:_xd length:_yd pos:[posx,posy,0] \
 	lengthsegs: lengthCount widthsegs:widthCount isSelected:on
 	convertToMesh resMesh
 	progressStart "创建地形网格..."
@@ -76,108 +68,51 @@ fn fromRaster rp =(
 	progressEnd()
 	pushPrompt "Done!"
 	update resMesh
+	max tool zoomextents
 	)
 	
 -- 设置网格大小
 rollout setGridSize "" width:232 height:40(
 	spinner 'spn1' "Grid Size: " pos:[15,12] width:116 height:22 align:#left range:[0.1,1000, gridSize] 
 	button 'btn1' "Go" pos:[170,10] width:48 height:20 align:#left
-	on btn1 pressed  do(
-		fromRaster(rPath)
+	on btn1 pressed do(
+		fromRaster()
 		destroyDialog setGridSize
-		max tool zoomextents
 		)
-	on spn1 changed amt do(
-		gridSize = amt
-		)
+	on spn1 changed amt do gridSize = amt
 	)
 
 -- 打开文件
-fn openFiles=(
-	
+fn openFiles =(
 	--清理
 	--resetMaxFile()
-
 	--选择
-	local filePath = getOpenFileName caption: "open File:" \
+	filePath = getOpenFileName caption: "open File:" \
 	types: "DWG(*.dwg)|*.dwg|ShapeFile(*.shp)|*.shp|GeoTIFF(*.tif)|*.tif|IMAGE(*.img)|*.img";
 
 	--取消
-	if filePath == undefined then( return undefined )
+	if (filePath == undefined) then return undefined 
 
 	--文件类型
-	local fileType = toUpper(getFilenameType filePath)
+	local tp = toUpper(getFilenameType filePath)
 
 	-- 栅格数据
-	if fileType == ".TIF" or fileType == ".IMG" then(
-		rPath = filePath
-		createdialog setGridSize
-		)
+	if (tp == ".TIF" or tp == ".IMG") then createdialog setGridSize
+
 	-- shp 文件通过ogr导入
-	else if fileType == ".SHP" then(
-		--fromShpFile(filePath)
-		fromShpFile_1(filePath)
-		)
+	else if (tp == ".SHP" and funcs.CreateFromSHP(filePath)) then createMesh();
+
 	-- dwg 文件直接导入
-	else if fileType == ".DWG" then(
+	else if (tp == ".DWG") then(
 		importFile filePath
 		select objects
-		fromSelection()
+		if(fromSelection()) then createMesh()
 		)
 	)
 
 -- 入口
 fn beginCreate=(
- 	if selection.count == 0 then(
- 		openFiles()
- 		)
- 	else if selection.count > 2 then(
-		createMesh(fromSelection())
- 		)
+ 	if (selection.count == 0) then openFiles()
+ 	else if (selection.count > 2 and fromSelection()) then createMesh()
  	)
---beginCreate()
-
-	
--------------------------------------------------------------	
-	
-	
-fn createMesh_1 points ids = (
-	vs = #()
-	fs = #()
-
-	for f=1 to points.count by 3 do(
-		append vs [points[f],points[f+1],points[f+2]]
-		) 
-	for d = 1 to ids.count by 3 do (
-		append fs [ids[d],ids[d+1],ids[d+2]]
-		)
- 	mesh vertices:vs  faces:fs
-	max tool zoomextents
-	)
-	
-fn fromSelection_1 = (
-	local arr=#()
-	for obj in selection do(
-		append arr obj.pos.x
-		append arr obj.pos.y
-		append arr obj.pos.z
-		)
-	return funcs.CreateFromPoints_1 arr
-	)
-
-fn fromShpFile_1 fPath =(
-	 funcs.CreateFromSHP_1(fPath) 
-	   createMesh_1 funcs.points funcs.ids
-	)
-
-fn beginCreate_1=(
- 	if selection.count == 0 then(
- 		openFiles()
- 		)
- 	else if selection.count > 2 then(
- 		if fromSelection_1() then createMesh_1 funcs.points funcs.ids
- 		)
- 	)
-	beginCreate_1()
-	
-	
+beginCreate()

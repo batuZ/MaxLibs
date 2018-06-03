@@ -42,45 +42,7 @@ namespace CreateMeshByPoints
         #region 处理点集
         public float[] points;
         public int[] ids;
-        public float[] CreateFromPoints(float[] a)
-        {
-            List<float> temp = new List<float>();
-            if (a != null && a.Length > 0 && a.Length % 3 == 0)
-            {
-                PointList pList = new PointList();
-                int id = 0;
-                for (int i = 0; i < a.Length; i += 3)
-                {
-                    Point p = new Point(a[i], a[i + 1], a[i + 2], id++);
-                    pList.pointList.Add(p);
-                }
-
-                Construction_TIN ct = new Construction_TIN(pList);
-                TriangleList tl = ct.Triangle_const();
-
-                if (tl.Count > 0)
-                {
-                    //三角形转点集
-                    PointList tPoints = new PointList();
-                    for (int i = 0; i < tl.Count; i++)
-                    {
-                        tPoints.pointList.Add(tl[i].A);
-                        tPoints.pointList.Add(tl[i].B);
-                        tPoints.pointList.Add(tl[i].C);
-                    }
-                    //点集转有序数组
-                    for (int i = 0; i < tPoints.Count; i++)
-                    {
-                        temp.Add(tPoints[i].X);
-                        temp.Add(tPoints[i].Y);
-                        temp.Add(tPoints[i].Z);
-                    }
-                }
-            }
-
-            return temp.ToArray();
-        }
-        public bool CreateFromPoints_1(float[] a)
+        public bool CreateMesh(float[] a) 
         {
             bool res = false;
             if (a != null && a.Length > 0 && a.Length % 3 == 0)
@@ -114,10 +76,11 @@ namespace CreateMeshByPoints
             else res = false;
             return res;
         }
+        public bool CreateMesh_1
         #endregion
 
         #region 处理shpFile
-        public float[] CreateFromSHP(string shpfile)
+        public bool CreateFromSHP(string shpfile)
         {
             Ogr.RegisterAll();
             OSGeo.OGR.Driver dr = Ogr.GetDriverByName("ESRI shapefile");
@@ -150,42 +113,7 @@ namespace CreateMeshByPoints
                 }
             }
             ds.Dispose();
-            return CreateFromPoints(points.ToArray());
-        }
-        public bool CreateFromSHP_1(string shpfile)
-        {
-            Ogr.RegisterAll();
-            OSGeo.OGR.Driver dr = Ogr.GetDriverByName("ESRI shapefile");
-            DataSource ds = dr.Open(shpfile, 0);
-            Layer layer = ds.GetLayerByIndex(0);
-            List<float> points = new List<float>();
-            //判断数据是否可用
-            int FeatCount = layer.GetFeatureCount(0);
-            wkbGeometryType geoType = layer.GetLayerDefn().GetGeomFieldDefn(0).GetFieldType();
-            if (FeatCount > 2 && geoType.ToString().Contains("wkbPoint"))
-            {
-                int indexZ = layer.GetLayerDefn().GetFieldIndex("Z");
-                if (indexZ > -1)    //优先使用 Z 字段
-                {
-                    for (int i = 0; i < FeatCount; i++)
-                    {
-                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetX(0));
-                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetY(0));
-                        points.Add((float)layer.GetFeature(i).GetFieldAsDouble(indexZ));
-                    }
-                }
-                else if (geoType == wkbGeometryType.wkbPoint25D)
-                {
-                    for (int i = 0; i < FeatCount; i++)
-                    {
-                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetX(0));
-                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetY(0));
-                        points.Add((float)layer.GetFeature(i).GetGeometryRef().GetZ(0));
-                    }
-                }
-            }
-            ds.Dispose();
-            return CreateFromPoints_1(points.ToArray());
+            return CreateMesh(points.ToArray());
         }
         #endregion
 
