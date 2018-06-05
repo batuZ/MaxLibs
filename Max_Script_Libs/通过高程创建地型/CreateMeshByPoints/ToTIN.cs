@@ -42,7 +42,7 @@ namespace CreateMeshByPoints
         #region 处理点集
         public float[] points;
         public int[] ids;
-        public bool CreateMesh(float[] a) 
+        public bool CreateMesh(float[] a)
         {
             bool res = false;
             if (a != null && a.Length > 0 && a.Length % 3 == 0)
@@ -76,7 +76,42 @@ namespace CreateMeshByPoints
             else res = false;
             return res;
         }
-        public bool CreateMesh_1
+        public bool CreateMesh_1(float[] pointArr)
+        {
+            bool res = false;
+            if (pointArr != null && pointArr.Length > 0 && pointArr.Length % 3 == 0)
+            {
+                //初始化
+                Point_1.PointList = new Dictionary<int, Point_1>();
+                Triangle_1.TriangleList = new List<Triangle_1>();
+
+                //获取点集
+                int pIndex = 1;
+                for (int i = 0; i < pointArr.Length; i += 3)
+                {
+                    Point_1.PointList[pIndex] = new Point_1(pointArr[i], pointArr[i + 1], pointArr[i + 2], pIndex++);
+                }
+                
+                CreateTri.testc();
+
+                if (Triangle_1.TriangleList.Count > 0)
+                {
+                    List<int> temp = new List<int>();
+                    for (int i = 0; i < Triangle_1.TriangleList.Count; i++)
+                    {
+                        temp.Add(Triangle_1.TriangleList[i].A);
+                        temp.Add(Triangle_1.TriangleList[i].B);
+                        temp.Add(Triangle_1.TriangleList[i].C);
+                    }
+                    points = pointArr;
+                    ids = temp.ToArray();
+                    res = true;
+                }
+                else res = false;
+            }
+            else res = false;
+            return res;
+        }
         #endregion
 
         #region 处理shpFile
@@ -113,7 +148,7 @@ namespace CreateMeshByPoints
                 }
             }
             ds.Dispose();
-            return CreateMesh(points.ToArray());
+            return CreateMesh_1(points.ToArray());
         }
         #endregion
 

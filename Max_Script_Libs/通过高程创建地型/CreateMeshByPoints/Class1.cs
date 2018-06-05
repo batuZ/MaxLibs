@@ -8,47 +8,40 @@ namespace CreateMeshByPoints
 {
     class CreateTri
     {
-        public static void testc(float[] pointArr)
+        public static void testc()
         {
-            //初始化
-            Point_1.PointList = new Dictionary<int, Point_1>();
-            Triangle_1.TriangleList = new List<Triangle_1>();
-
-            //获取点集
-            int pIndex = 1;
-            for (int i = 0; i < pointArr.Length; i += 3)
-            {
-                Point_1.PointList[pIndex] = new Point_1(pointArr[i], pointArr[i + 1], pointArr[i + 2], pIndex++);
-            }
-
             //创建超三角，加入三角集，并把顶点加入点集，索引为-1，-2，-3
             Triangle_1.SuperTriangle(Point_1.PointList.Values.ToList());
 
+            //遍历除超三角（索引小于0）外所有的点，使用点ID为索引，从1开始
             for (int i = 0; i < Point_1.PointList.Count - 3; i++)
             {
+                //当前点
+                Point_1 tagP = Point_1.PointList[i + 1];
+   
+                //边集，把所有与当前点有关的三角上的边塞入
                 List<Edge_1> edges = new List<Edge_1>();
-                Point_1 tagP = Point_1.PointList[i];
+
+                //遍历已创建的所有三角形，如果点在外接圆内，则把自己的三个边塞入边集 
                 for (int t = 0; t < Triangle_1.TriangleList.Count; t++)
                 {
                     Triangle_1 tagT = Triangle_1.TriangleList[t];
                     if (tagT.IsInCirclecircle(tagP))
                     {
-                        edges.Add(tagT.e1);
-                        edges.Add(tagT.e2);
-                        edges.Add(tagT.e3);
+                        edges.AddRange(new Edge_1[] { tagT.e1, tagT.e2, tagT.e3 });
+                        //从三角集中移除，避免重复
                         Triangle_1.TriangleList.Remove(tagT);
                         t--;
                     }
                 }
 
+                //处理边集，任意两个边如果重合，则两个全部移除掉
                 Dictionary<int, int> ids = new Dictionary<int, int>();
                 for (int es = 0; es < edges.Count; es++)
                 {
-                    Edge_1 thisE = edges[es];
                     for (int eos = es + 1; eos < edges.Count; eos++)
                     {
-                        Edge_1 nextE = edges[eos];
-                        if ((thisE.end == nextE.end && thisE.start == nextE.start) || (thisE.start == nextE.end && thisE.end == nextE.start))
+                        if (edges[es].isSame(edges[eos]))
                         {
                             ids[es] = 0;
                             ids[eos] = 0;
@@ -61,29 +54,25 @@ namespace CreateMeshByPoints
                 moveItems.Sort();
                 for (int m = 0; m < moveItems.Count; m++)
                 {
-                    edges.RemoveAt(m);
-                    m--;
+                    edges.RemoveAt(moveItems[m] - m);
                 }
 
+                //用当前点与所有剩下的边分别创建三角形，并塞入三角集
                 for (int k = 0; k < edges.Count; k++)
                 {
-                    Triangle_1.TriangleList.Add(new Triangle_1(tagP.id, edges[k].start, edges[k].end));
-                }
-
-                for (int r = 0; r < Triangle_1.TriangleList.Count; r++)
-                {
-                    var t = Triangle_1.TriangleList[r];
-                    if (t.A < 0 || t.B < 0 || t.C < 0)
-                        Triangle_1.TriangleList.Remove(t);
-                    r--;
+                    Triangle_1.TriangleList.Add(new Triangle_1(tagP.id, edges[k]));
                 }
             }
+
+            //完成所有点处理后，需要清理与超三角有关的三角
+            Triangle_1.RemoveSupers();
         }
     }
     class Triangle_1
     {
         // 静态部分
         public static List<Triangle_1> TriangleList = new List<Triangle_1>();
+        //创建超三角
         public static void SuperTriangle(List<Point_1> pointList)
         {
             //定义四个变量，存储最大最小的横纵坐标值
@@ -132,6 +121,20 @@ namespace CreateMeshByPoints
             //构造函数Triangle（PointA，PointB,PointC）定义在Triangle类中
             TriangleList.Add(new Triangle_1(-1, -2, -3));
         }
+        //移除与超三角有关的三角
+        public static void RemoveSupers()
+        {
+            //三角中有任意一点属于超三角的，移除！
+            for (int i = 0; i < TriangleList.Count; i++)
+            {
+                var t = TriangleList[i];
+                if (t.A < 0 || t.B < 0 || t.C < 0)
+                {
+                    TriangleList.Remove(t);
+                    i--;
+                }
+            }
+        }
 
         //实例部分
         public int A { get; }
@@ -153,8 +156,7 @@ namespace CreateMeshByPoints
             this.e1 = new Edge_1(A, B);
             this.e2 = new Edge_1(B, C);
             this.e3 = new Edge_1(C, A);
-
-
+            
             //定义三角形顶点
             float x1 = Point_1.PointList[A].X;
             float y1 = Point_1.PointList[A].Y;
@@ -162,20 +164,18 @@ namespace CreateMeshByPoints
             float y2 = Point_1.PointList[B].Y;
             float x3 = Point_1.PointList[C].X;
             float y3 = Point_1.PointList[C].Y;
-
             //计算三角形外接圆圆心
             circumCirlecenterX = ((y2 - y1) * (y3 * y3 - y1 * y1 + x3 * x3 - x1 * x1) - (y3 - y1) * (y2 * y2 - y1 * y1 + x2 * x2 - x1 * x1)) / (2 * (x3 - x1) * (y2 - y1) - 2 * ((x2 - x1) * (y3 - y1)));
             circumCirlecenterY = ((x2 - x1) * (x3 * x3 - x1 * x1 + y3 * y3 - y1 * y1) - (x3 - x1) * (x2 * x2 - x1 * x1 + y2 * y2 - y1 * y1)) / (2 * (y3 - y1) * (x2 - x1) - 2 * ((y2 - y1) * (x3 - x1)));
             //计算外接圆半径的平方
             circumCirleRadius2 = Math.Pow(circumCirlecenterX - x1, 2) + Math.Pow(circumCirlecenterY - y1, 2);
         }
-
+        public Triangle_1(int a, Edge_1 e) : this(a, e.start, e.end) { }
         //判断点是否在三角形外接圆内部
         public bool IsInCirclecircle(Point_1 Point)
         {
             //计算外接圆圆心和插入点距离的平方
-            double dist2 = Math.Pow(Point.X - circumCirlecenterX, 2) + Math.Pow(Point.Y - circumCirlecenterY, 2);
-            return dist2 <= circumCirleRadius2;
+            return Math.Pow(Point.X - circumCirlecenterX, 2) + Math.Pow(Point.Y - circumCirlecenterY, 2) <= circumCirleRadius2;
         }
     }
     class Edge_1
@@ -187,6 +187,10 @@ namespace CreateMeshByPoints
         {
             start = s;
             end = e;
+        }
+        public bool isSame(Edge_1 other)
+        {
+            return (start == other.start && end == other.end) || (end == other.start && start == other.end);
         }
     }
     class Point_1

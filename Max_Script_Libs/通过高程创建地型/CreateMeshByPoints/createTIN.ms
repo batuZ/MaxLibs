@@ -32,7 +32,11 @@ fn fromSelection = (
 		append arr obj.pos.y
 		append arr obj.pos.z
 		)
-	return funcs.CreateMesh arr
+			
+	try 
+		return funcs.CreateMesh_1 arr
+	catch
+		return false
 	)
 
 -- 通过栅格创建
