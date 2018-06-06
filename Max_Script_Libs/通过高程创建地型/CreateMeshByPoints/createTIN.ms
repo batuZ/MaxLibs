@@ -1,4 +1,28 @@
-dotnet.loadassembly @"bin\x64\Debug\CreateMeshByPoints.dll"
+-------------------------------------------------------------------------------------------------------------
+--						- 说 明 -														      
+--																							 
+--	建地面建模形，有时需要参考GIS高程数据，本工具是为解决各种高程数据导入MAX，并创建网格模型的问题。
+--
+--	当前支持高程数据的类型包括：栅格数据（GeoTiff,IMG），矢量数据（SHP，DWG），只支持平面坐标系。
+--	
+--  SHP需要点类型数据，可以获取点的高度坐标，也可以读取 "Z" 属性字段，两者同时存在时，"Z"字段优先
+--
+--	还可以通过选择场景中已有的模型，通过其中心点坐标进行三角化。
+--
+--
+--						- 注 意 -
+--
+--	需要.Net4.5.2环境
+--
+--	依赖CreateMeshByPoints.dll库及GDAL库，引用路径可以通过 dotnet.loadassembly 后的字符串指定
+--	
+--	输入数据的坐标值过大时，可能会导致溢出，建议向中心便宜后再处理
+--
+--	问题反馈 batu@gvitech.com
+--
+------------------------------------------------------------------------------------------------------------
+
+dotnet.loadassembly @"lib\CreateMeshByPoints.dll"
 global funcs = dotNetObject "CreateMeshByPoints.ToTIN"
 global gridSize = 5
 global filePath
@@ -7,18 +31,18 @@ clearListener()
 -- 建网格
 fn createMesh = (
 	local vs = #(); fs = #(); points = funcs.points; ids = funcs.ids
--- 	progressStart "创建地形网格..."
+ 	progressStart "创建地形网格..."
 	for f=1 to points.count by 3 do(
 		append vs [points[f],points[f+1],points[f+2]]
--- 		progressUpdate (100 * f / points.count)
--- 		if getProgressCancel() then exit
+ 		progressUpdate (100 * f / points.count)
+ 		if getProgressCancel() then exit
 		) 
 	for d = 1 to ids.count by 3 do (
 		append fs [ids[d],ids[d+1],ids[d+2]]
--- 		progressUpdate (100 * d / ids.count)
--- 		if getProgressCancel() then exit
+ 		progressUpdate (100 * d / ids.count)
+ 		if getProgressCancel() then exit
 		)
--- 	progressEnd()
+ 	progressEnd()
 	pushPrompt "Done!"
  	mesh vertices:vs  faces:fs
 	max tool zoomextents
@@ -34,7 +58,7 @@ fn fromSelection = (
 		)
 			
 	try 
-		return funcs.CreateMesh_1 arr
+		return funcs.CreateMesh arr
 	catch
 		return false
 	)
@@ -88,11 +112,10 @@ rollout setGridSize "" width:232 height:40(
 
 -- 打开文件
 fn openFiles =(
-	--清理
-	--resetMaxFile()
+	
 	--选择
 	filePath = getOpenFileName caption: "open File:" \
-	types: "DWG(*.dwg)|*.dwg|ShapeFile(*.shp)|*.shp|GeoTIFF(*.tif)|*.tif|IMAGE(*.img)|*.img";
+	types: "GeoTIFF(*.tif)|*.tif|IMAGE(*.img)|*.img|ShapeFile(*.shp)|*.shp|DWG(*.dwg)|*.dwg";
 
 	--取消
 	if (filePath == undefined) then return undefined 
@@ -105,7 +128,7 @@ fn openFiles =(
 
 	-- shp 文件通过ogr导入
 	else if (tp == ".SHP" and funcs.CreateFromSHP(filePath)) then createMesh();
-
+		
 	-- dwg 文件直接导入
 	else if (tp == ".DWG") then(
 		importFile filePath
